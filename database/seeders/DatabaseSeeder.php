@@ -13,26 +13,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call(RolePermissionSeeder::class);
 
-        // Create admin
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@admin.com'],
-            [
-                'name' => 'Admin User',
-                'username' => 'admin',
-                'password' => bcrypt('password'),
-            ]
-        );
+        $this->call([
+            RolePermissionSeeder::class,
+            UserSeeder::class,
+            CategorySeeder::class,
+            TagSeeder::class,
+            PostSeeder::class,
+            CommentSeeder::class,
+            MediaSeeder::class,
+            LikeSeeder::class,
+            BookmarkSeeder::class,
+            AuditLogSeeder::class,
+        ]);
 
-        // Assign Admin Role to admin
-        if (! $admin->hasRole('admin')) {
-            $admin->assignRole('admin');
-        }
-
-        // Create user users
-        User::factory(10)->create()->each(function ($user) {
-            $user->assignRole('user');
-        });
     }
 }

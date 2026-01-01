@@ -21,6 +21,8 @@ class User extends Authenticatable
         'name',
         'username',
         'email',
+        'avatar',
+        'bio',
         'password',
     ];
 
@@ -39,12 +41,43 @@ class User extends Authenticatable
         ];
     }
 
-    // app/Models/User.php
+    // Relationships
     public function isAdmin(): bool
     {
         return $this->hasRole('admin');
     }
 
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+
+    public function media()
+    {
+        return $this->hasMany(Media::class);
+    }
+
+    public function likes()
+    {
+        return $this->hasMany(Like::class);
+    }
+
+    public function bookmarks()
+    {
+        return $this->hasMany(Bookmark::class);
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
+    // Scope for filtering
     public function ScopeFilter(Builder $builder,BaseFilter $filters)
     {
         return $filters->apply($builder);
