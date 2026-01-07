@@ -1,0 +1,46 @@
+export interface Permission {
+  id: number
+  name: string
+}
+
+export interface Role {
+  id: number
+  name: string
+  permissions: Permission[]
+}
+
+export interface User {
+  id: number
+  name: string
+  username: string
+  email: string
+  created_at: string //ISO date string,
+  updated_at: string // ISO date string,
+
+  permissions?: Permission[]
+  direct_permissions?: Permission[]
+}
+
+export interface LoginResponse {
+  message: string
+  status: number
+  data: {
+    user: User
+    token: string
+  }
+}
+export interface ApiResponse<T> {
+  data: T
+}
+
+export interface Payment {
+  id: string
+  amount: number
+  status: 'pending' | 'processing' | 'success' | 'failed'
+  email: string
+}
+
+export interface FetchUserOptions {
+  sort?:string;
+  direction?:'asc'|'desc'
+}
