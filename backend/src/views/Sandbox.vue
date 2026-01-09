@@ -34,10 +34,10 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectItem,SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 //ICONS
-import { ArrowDown,ArrowUp } from 'lucide-vue-next'
+import { ArrowDown,ArrowUp, ChevronUp,ChevronDown } from 'lucide-vue-next'
 
 
 /* -------------------------------------------------
@@ -180,9 +180,47 @@ onBeforeRouteUpdate(async (to, _, next) => {
   next()
 })
 
+
+/* -----------------------------
+ * Tanstack Vue Table
+ * ----------------------------- */
 /**
  * Tanstack Data Table
  */
+
+function sortableHeader(label: string) {
+  return ({ column }: any) => {
+    return h(
+      Button,
+      {
+        variant: 'ghost',
+        class: 'cursor-pointer select-none flex items-center gap-2',
+        onClick: () => column.toggleSorting(),
+      },
+      () => [
+        h('span', label),
+        h(
+          'span',
+          { class: 'flex flex-col leading-none -my-1' },
+          [
+            h(ChevronUp, {
+              class: [
+                'h-3 w-3 transition-opacity -mb-1',
+                column.getIsSorted() === 'asc' ? 'opacity-100 stroke-3' : 'opacity-20',
+              ].join(' '),
+            }),
+            h(ChevronDown, {
+              class: [
+                'h-3 w-3 transition-opacity -mt-0.5',
+                column.getIsSorted() === 'desc' ? 'opacity-100 stroke-3' : 'opacity-20',
+              ].join(' '),
+            }),
+          ]
+        )
+      ]
+    )
+  }
+}
 
 const columns: ColumnDef<User>[] = [
   {
@@ -204,65 +242,25 @@ const columns: ColumnDef<User>[] = [
   },
    {
     accessorKey: 'name',
-    enableSorting: true,
-    
-    header: ({ column }) =>
-      h(Button, {
-        variant: 'ghost',
-        class:'cursor-pointer',
-        onClick: () => column.toggleSorting(),
-      }, () => ['Name', 
-                column.getIsSorted() === 'asc' ? h(ArrowUp) 
-                : column.getIsSorted() === 'desc' ? h(ArrowDown): '']),
+    enableSorting:true,
+    header:sortableHeader('Name'),
   },
   {
     accessorKey: 'username',
-    header: () =>
-      h(
-        'div',
-        { class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
-        'username',
-      ),
-    cell: ({ row }) => {
-      return h('div', { class: 'text-left text-sm text-foreground' }, row.getValue('username'))
-    },
+    enableSorting:true,
+    header:sortableHeader('Username'),
+    
   },
 
   {
-    accessorKey: 'email',
-    header: () =>
-      h(
-        'div',
-        { class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
-        'Email',
-      ),
-    cell: ({ row }) => {
-      return h('div', { class: 'text-left text-sm text-foreground' }, row.getValue('email'))
-    },
-  },
-  {
-    accessorKey: 'created_at',
-    header: () =>
-      h(
-        'div',
-        { class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
-        'Created At',
-      ),
-    cell: ({ row }) => {
-      return h('div', { class: 'text-left text-sm text-foreground' }, row.getValue('created_at'))
-    },
+   accessorKey: 'email',
+    enableSorting:true,
+    header:sortableHeader('Email')
   },
   {
     accessorKey: 'updated_at',
-    header: () =>
-      h(
-        'div',
-        { class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
-        'Updated At',
-      ),
-    cell: ({ row }) => {
-      return h('div', { class: 'text-left text-sm text-foreground' }, row.getValue('updated_at'))
-    },
+    enableSorting:true,
+    header:sortableHeader('Updated at')
   },
   {
     accessorKey: 'permissions',
@@ -272,6 +270,7 @@ const columns: ColumnDef<User>[] = [
         { class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
         'Permissions',
       ),
+      enableSorting:false,
     cell: ({ row }) => {
       const perms = row.getValue('permissions') as { id: number; name: string }[]
 
@@ -333,18 +332,15 @@ const table = useVueTable<User>({
 </script>
 
 <template>
-  <div class="rounded-t-md border shadow-sm overflow-x-auto bg-white">
+  <div class="rounded-t-md border shadow-sm overflow-x-auto bg-background">
     <Table>
-      <TableHeader class="bg-gray-50">
+      <TableHeader class="bg-muted dark:bg-muted/20">
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead 
             v-for="header in headerGroup.headers" 
             :key="header.id" 
             :class="header.column.getCanSort() ? 'cursor-pointer' : ''"
-            @click="()=>{
-              console.log('clicked header',header.column.id)
-              header.column.toggleSorting()
-            }"
+            
           >
             <FlexRender
               v-if="!header.isPlaceholder"
@@ -373,7 +369,7 @@ const table = useVueTable<User>({
     </Table>
   </div>
   <div
-    class="flex items-center justify-between py-4 px-4 space-x-2 bg-white shadow-sm rounded-b-md mt-0"
+    class="flex items-center justify-between py-4 px-4 space-x-2 bg-background shadow-sm rounded-b-md mt-0"
   >
     <div class="text-sm text-muted-foreground">
       Showing {{ resultsRange.from }} to {{ resultsRange.to }} of {{ resultsRange.total }} results
