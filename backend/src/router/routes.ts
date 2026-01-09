@@ -64,15 +64,25 @@ export const routes: RouteRecordRaw[] = [
           const ui_progressStore = useUiProgressStore()
 
           const page = Number(to.query.page ?? 1)
+          const perPage = Number(to.query.per_page ?? 10)
+          const sortParam = to.query.sort as string | undefined
+
+          //check cache using SAME KEY SHAPE as store
+          const cacheKey = `${page}-${perPage}-${sortParam ?? 'none'}`
 
           // Only fetch if not already cached
-          if (!userStore.usersByPage[page]) {
-            ui_progressStore.advanceProgress(50)
-            await userStore.fetchUsers(page)
-            ui_progressStore.advanceProgress(80)
+          if (!userStore.usersByPage[cacheKey]) {
+            try{
+              ui_progressStore.advanceProgress(50)
+              await userStore.fetchUsers(page,perPage,{sort:sortParam})
+              ui_progressStore.advanceProgress(80)
+            }catch(e){
+              console.error('Failed to preload users in route guard:',e)
+            }
           }
 
-          // returning nothing === allow navigation
+          //allow navigation
+          return true
         },
       },
     ],

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import type { User, ApiResponse,FetchUserOptions } from '@/types'
 import apiClient from '@/lib/axios'
-import { get } from '@vueuse/core'
+
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -10,7 +10,7 @@ export const useUserStore = defineStore('user', {
     isLoading: false,
     isLoaded: false, // Indicates if a single user has been loaded
     usersByPage: {} as Record<string, User[]>, // Cache users by page number
-    activePageSize: null as number | null,
+    activePageSize: 10,
     pagination: {
       current_page: 1,
       last_page: 1,
@@ -19,12 +19,14 @@ export const useUserStore = defineStore('user', {
     },
   }),
   getters: {
+    // Get users from cache for a page + perPage + sort
     getUsersByPage: (state) => {
-  return (page: number, perPage: number, sort?: string, direction?: string) => {
-    const cacheKey = `${page}-${perPage}-${sort ?? 'none'}-${direction ?? 'none'}`
-    return state.usersByPage[cacheKey] || null
-  }
-}
+      return (page: number, perPage: number, sort?: string) => {
+        const cacheKey = `${page}-${perPage}-${sort ?? 'none'}`
+        console.log('GET cache key:', cacheKey, 'CACHE HIT?', !!state.usersByPage[cacheKey])
+        return state.usersByPage[cacheKey] || null
+      }
+    }
   },
 
   actions: {
@@ -33,15 +35,20 @@ export const useUserStore = defineStore('user', {
       perPage = 10,
       options: FetchUserOptions = {},
     ) {
-      //RESET CACHE IF PERPAGE CHANGES
+
+      //RESET CACHE IF PAGE SIZE CHANGES
       if (this.activePageSize !== perPage) {
         this.usersByPage = {} // Clear cache if page size changed
         this.activePageSize = perPage // Update active page size
       }
-      const { sort, direction } = options
-      const cacheKey = `${page}-${perPage}-${sort ?? 'none'}-${direction ?? 'none'}`
 
-      //SERVE CACHED
+      const { sort } = options
+      //Cache key must match API combo
+      const cacheKey = `${page}-${perPage}-${sort ?? 'none'}`
+     
+      
+      
+      //SERVE CACHED IF EXISTS
       if (this.usersByPage[cacheKey]) {
         return this.usersByPage[cacheKey]
       }
@@ -49,20 +56,18 @@ export const useUserStore = defineStore('user', {
       this.isLoading = true
 
       try {
-        const { sort, direction } = options
         const params: Record<string, any> = { page, per_page: perPage }
 
         if (sort) params.sort = sort
-        if (direction) params.direction = direction
 
         const response = await apiClient.get(`/users`, { params })
 
         const { data, meta } = response.data
 
-        //UPDATE PAGINATION AFTER FETCH
+        //UPDATE PAGINATION META AFTER FETCH
         this.pagination = meta
 
-        //CACHE THE PAGE
+        //CACHE THE PAGE + PERPAGE + SORT
         this.usersByPage[cacheKey] = data
 
         return data

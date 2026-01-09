@@ -1,24 +1,29 @@
 <script setup lang="ts">
+  // TYPES
 import type { User } from '@/types'
-import { ref, computed, h, watch } from 'vue'
 
+//VUE CORE
+import { ref, computed, h, watch } from 'vue'
+import { RouterLink, useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
+
+//STATE
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/user'
+
+
+//TABLE (TANSTACK)
 import type {
   ColumnDef,
-  ColumnFiltersState,
-  ExpandedState,
   SortingState,
-  VisibilityState,
 } from '@tanstack/vue-table'
 import {
   FlexRender,
   getCoreRowModel,
-  getExpandedRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
 
+
+//UI COMPONENTS
 import {
   Table,
   TableBody,
@@ -28,32 +33,27 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-
-import { useUserStore } from '@/stores/user'
-
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from 'lucide-vue-next'
-import { useUiProgressStore } from '@/stores/ui_progress'
-
 import { Badge } from '@/components/ui/badge'
-import { RouterLink, useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
-
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-import { storeToRefs } from 'pinia'
+//ICONS
+import { ArrowDown,ArrowUp } from 'lucide-vue-next'
 
-// Contants and Stores
+
+/* -------------------------------------------------
+ * ROUTER + STORE SETUP
+ * ------------------------------------------------- */
 const route = useRoute()
 const router = useRouter()
-
 const userStore = useUserStore()
-
-const pageSizeOptions: number[] = [10, 25, 50, 100]
-
 const { pagination } = storeToRefs(userStore)
 
-const sorting = ref<SortingState>([])
+/* -------------------------------------------------
+* PAGINATION STATE
+* ------------------------------------------------- */
+const pageSizeOptions: number[] = [10, 25, 50, 100]
 
-// Current page from query
+//CURRENT PAGE (synced with query param `page`)
 const currentPage = computed({
   get: () => Number(route.query.page ?? 1),
   set: (page) => {
@@ -63,10 +63,7 @@ const currentPage = computed({
   },
 })
 
-//Table rows (from cache)
-const users = computed(() => userStore.getUsersByPage(currentPage.value, perPage.value) ?? [])
-
-// Per Page from query OR Store default
+//Items per page (query param `per_page`)
 const perPage = computed<number>({
   get: () => Number(route.query.per_page ?? userStore.pagination.per_page),
   set: (size) => {
@@ -80,7 +77,14 @@ const perPage = computed<number>({
   },
 })
 
-//Result Range
+/**
+ * Page count for TanStack manual pagination mode
+ */
+const pageCount = computed(() => userStore.pagination.last_page)
+
+/**
+ * Total pagination info text "Showing x–y of z"
+ */
 const resultsRange = computed(() => {
   const total = userStore.pagination.total
 
@@ -92,50 +96,93 @@ const resultsRange = computed(() => {
   return { from, to, total }
 })
 
-//Page count for Tanstack
-const pageCount = computed(() => userStore.pagination.last_page)
 
-//Fetch when page or perPage changes
+/* -------------------------------------------------
+ * SORTING STATE
+ * ------------------------------------------------- */
+/**
+ * Laravel-style sort param from URL
+ * examples:
+ *   name      → asc
+ *   -name     → desc
+ */
+//Tanstack table sorting state
+const sortParam = computed(() => route.query.sort as string | undefined)
+
+// Laravel-style sort param for fetch/getUsersByPage
+const sorting = computed<SortingState>({
+  get: () => {
+    const sort = route.query.sort as string | undefined
+    if (!sort) return []
+
+    const desc = sort.startsWith('-')
+    const id = desc ? sort.slice(1) : sort
+
+    return [{ id, desc }]
+  },
+
+  set: value => {
+  const first = value[0]
+
+  const sortParam = first
+    ? first.desc ? `-${first.id}` : first.id
+    : undefined
+
+  const nextQuery: Record<string, any> = {
+    ...route.query,
+    sort: sortParam,
+    page: 1,
+  }
+
+  if (!sortParam) delete nextQuery.sort
+  if (currentPage.value === 1) delete nextQuery.page
+
+  // avoid pushing identical query
+  if (JSON.stringify(nextQuery) === JSON.stringify(route.query)) return
+
+  router.push({ query: nextQuery })
+
+  },
+})
+
+/* -------------------------------------------------
+ * DATA FROM STORE (CACHED)
+ * ------------------------------------------------- */
+// Users for current page/sort from store cache
+
+ const users = computed(() =>
+  userStore.getUsersByPage(currentPage.value, perPage.value, sortParam.value) ?? []
+)
+
+console.log(users.value)
+
+/* -------------------------------------------------
+ * WATCHERS
+ * ------------------------------------------------- */
+// Fetch users when page, perPage, or sorting changes
 watch(
-  () => [currentPage.value, perPage.value],
-  async ([page, size]) => {
-    await userStore.fetchUsers(page, size)
+  [currentPage, perPage, sortParam],
+  async ([page, perPage, sortValue]) => {
+    await userStore.fetchUsers(page, perPage, {sort:sortValue})
   },
   { immediate: true },
 )
 
-watch(
-  sorting,
-  async () => {
-    const sortField = sorting.value[0]?.id ?? null
-    const desc = sorting.value[0]?.desc ?? false
-
-    // Build Laravel style sort param
-    const sortParam = sortField
-      ? (desc ? `-${sortField}` : sortField)
-      : undefined
-
-    await userStore.fetchUsers(currentPage.value, perPage.value, {
-      sort: sortParam,
-    })
-  },
-  { deep: true }
-)
-
-
-
-//Fetch on route change
+/* -----------------------------
+ * ROUTE CHANGE
+ * ----------------------------- */
 onBeforeRouteUpdate(async (to, _, next) => {
   const page = Number(to.query.page ?? 1)
   const size = Number(to.query.per_page ?? perPage.value)
-
-  const cache = userStore.getUsersByPage(page, size)
-
-  if (!cache || !cache.length) {
-    await userStore.fetchUsers(page, size)
-  }
+  const sort = to.query.sort as string | undefined
+  const cache = userStore.getUsersByPage(page, size, sort)
+  if (!cache || !cache.length) await userStore.fetchUsers(page, size, { sort: sort })
   next()
 })
+
+/**
+ * Tanstack Data Table
+ */
 
 const columns: ColumnDef<User>[] = [
   {
@@ -157,12 +204,16 @@ const columns: ColumnDef<User>[] = [
   },
    {
     accessorKey: 'name',
+    enableSorting: true,
+    
     header: ({ column }) =>
       h(Button, {
         variant: 'ghost',
         class:'cursor-pointer',
-        onClick: () => column.toggleSorting(column.getIsSorted() === 'asc'),
-      }, () => ['Name', h(ArrowUpDown, { class: 'ml-2 w-4 h-4' })]),
+        onClick: () => column.toggleSorting(),
+      }, () => ['Name', 
+                column.getIsSorted() === 'asc' ? h(ArrowUp) 
+                : column.getIsSorted() === 'desc' ? h(ArrowDown): '']),
   },
   {
     accessorKey: 'username',
@@ -245,15 +296,17 @@ const table = useVueTable<User>({
 
   manualPagination: true,
   manualSorting:true,
-
+  enableSortingRemoval: true,
   pageCount: pageCount.value,
 
   state: {
     pagination: {
       pageIndex: currentPage.value - 1,
-      pageSize: userStore.activePageSize ?? userStore.pagination.per_page,
+      pageSize: perPage.value
     },
-    sorting:sorting.value
+    get sorting() {
+    return sorting.value
+  }
   },
 
   onPaginationChange: (updater) => {
@@ -268,7 +321,8 @@ const table = useVueTable<User>({
     currentPage.value = next.pageIndex + 1
   },
    onSortingChange: (updater) => {
-    sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater
+    sorting.value = 
+        typeof updater === 'function' ? updater(sorting.value) : updater
   },
 
   getCoreRowModel: getCoreRowModel(),
@@ -283,7 +337,15 @@ const table = useVueTable<User>({
     <Table>
       <TableHeader class="bg-gray-50">
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-          <TableHead v-for="header in headerGroup.headers" :key="header.id" :class="header.column.getCanSort() ? 'cursor-pointer' : ''">
+          <TableHead 
+            v-for="header in headerGroup.headers" 
+            :key="header.id" 
+            :class="header.column.getCanSort() ? 'cursor-pointer' : ''"
+            @click="()=>{
+              console.log('clicked header',header.column.id)
+              header.column.toggleSorting()
+            }"
+          >
             <FlexRender
               v-if="!header.isPlaceholder"
               :render="header.column.columnDef.header"
