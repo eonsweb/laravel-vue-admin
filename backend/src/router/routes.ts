@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { buildUsersCacheKey } from '@/utils/cacheKey'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -30,15 +31,32 @@ export const routes: RouteRecordRaw[] = [
           const ui_progressStore = useUiProgressStore()
 
           const page = Number(to.query.page ?? 1)
+          const perPage = Number(to.query.per_page ?? 10)
+          const sortParam = to.query.sort as string | undefined
+          const searchParam = to.query.search as string | undefined
+
+          const cacheKey = buildUsersCacheKey(page, perPage, sortParam,searchParam)
+
+          // Set a flag in sessionStorage to indicate route guard is handling initial fetch
+          sessionStorage.setItem('routeGuardFetching', 'true')
 
           // Only fetch if not already cached
-          if (!userStore.usersByPage[page]) {
-            ui_progressStore.advanceProgress(50)
-            await userStore.fetchUsers(page)
-            ui_progressStore.advanceProgress(80)
+          if (!userStore.usersByPage[cacheKey]) {
+            try {
+              ui_progressStore.advanceProgress(50)
+              await userStore.fetchUsers(page, perPage, {
+                sort: sortParam,
+                search: searchParam
+              })
+              ui_progressStore.advanceProgress(80)
+            } catch (error) {
+              console.error('Failed to preload users in route guard:', error)
+            }
           }
 
-          // returning nothing === allow navigation
+          // Clear the flag
+          sessionStorage.removeItem('routeGuardFetching')
+          return true
         },
       },
       {
@@ -66,15 +84,17 @@ export const routes: RouteRecordRaw[] = [
           const page = Number(to.query.page ?? 1)
           const perPage = Number(to.query.per_page ?? 10)
           const sortParam = to.query.sort as string | undefined
+          const searchParam = to.query.search as string | undefined
 
           //check cache using SAME KEY SHAPE as store
-          const cacheKey = `${page}-${perPage}-${sortParam ?? 'none'}`
+          const cacheKey = buildUsersCacheKey(page, perPage, sortParam,searchParam)
+          console.log('Sandbox route guard checking cache key:', cacheKey)
 
           // Only fetch if not already cached
           if (!userStore.usersByPage[cacheKey]) {
             try{
               ui_progressStore.advanceProgress(50)
-              await userStore.fetchUsers(page,perPage,{sort:sortParam})
+              await userStore.fetchUsers(page,perPage,{sort:sortParam,search:searchParam})
               ui_progressStore.advanceProgress(80)
             }catch(e){
               console.error('Failed to preload users in route guard:',e)

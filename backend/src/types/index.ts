@@ -42,5 +42,5 @@ export interface Payment {
 
 export interface FetchUserOptions {
   sort?:string;
-  direction?:'asc'|'desc'
+  search?:string;
 }

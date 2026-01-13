@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import type { User, ApiResponse,FetchUserOptions } from '@/types'
 import apiClient from '@/lib/axios'
 
+import { buildUsersCacheKey } from '@/utils/cacheKey'
+
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -21,9 +23,9 @@ export const useUserStore = defineStore('user', {
   getters: {
     // Get users from cache for a page + perPage + sort
     getUsersByPage: (state) => {
-      return (page: number, perPage: number, sort?: string) => {
-        const cacheKey = `${page}-${perPage}-${sort ?? 'none'}`
-        console.log('GET cache key:', cacheKey, 'CACHE HIT?', !!state.usersByPage[cacheKey])
+      return (page: number, perPage: number, sort?: string,search?:string) => {
+        const cacheKey = buildUsersCacheKey(page, perPage, sort,search)
+        console.log('GET cache key in getter :', cacheKey, 'CACHE HIT?', !!state.usersByPage[cacheKey])
         return state.usersByPage[cacheKey] || null
       }
     }
@@ -42,9 +44,11 @@ export const useUserStore = defineStore('user', {
         this.activePageSize = perPage // Update active page size
       }
 
-      const { sort } = options
+      const { sort,search } = options
       //Cache key must match API combo
-      const cacheKey = `${page}-${perPage}-${sort ?? 'none'}`
+      const cacheKey = buildUsersCacheKey(page, perPage, sort,search)
+
+      console.log('FETCH cache key in action:', cacheKey, 'CACHE HIT?', !!this.usersByPage[cacheKey])
      
       
       
@@ -59,6 +63,7 @@ export const useUserStore = defineStore('user', {
         const params: Record<string, any> = { page, per_page: perPage }
 
         if (sort) params.sort = sort
+        if(search) params.search = search
 
         const response = await apiClient.get(`/users`, { params })
 

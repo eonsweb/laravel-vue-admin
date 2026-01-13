@@ -50,8 +50,12 @@
 
       <CardFooter>
         <Button class="w-full my-7" @click="handleLogin" :disabled="auth.isLoading">
-          <span v-if="!auth.isLoading">Continue</span>
-          <span v-else>Loading...</span>
+          <span v-if="!auth.isLoading">Login</span>
+          <div v-else class="flex items-center">
+            <LoaderCircle  class="animate-spin mr-2" size="20" />
+            Logging in...
+          </div>
+          
         </Button>
       </CardFooter>
     </Card>
@@ -59,7 +63,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { LucideMail, LucideEye, LucideEyeOff } from 'lucide-vue-next'
+import { LucideMail, LucideEye, LucideEyeOff,LoaderCircle, Loader } from 'lucide-vue-next'
 
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'

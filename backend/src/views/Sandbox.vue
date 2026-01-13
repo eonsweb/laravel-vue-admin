@@ -2,6 +2,9 @@
   // TYPES
 import type { User } from '@/types'
 
+import { debounce } from '@/composables/useDebounce'
+import { buildUsersCacheKey } from '@/utils/cacheKey'
+
 //VUE CORE
 import { ref, computed, h, watch } from 'vue'
 import { RouterLink, useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
@@ -35,9 +38,17 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectItem,SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 
 //ICONS
-import { ArrowDown,ArrowUp, ChevronUp,ChevronDown } from 'lucide-vue-next'
+import {  ChevronUp,ChevronDown,X ,MoreVertical, Pencil, Trash2} from 'lucide-vue-next'
+
+
 
 
 /* -------------------------------------------------
@@ -47,6 +58,13 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const { pagination } = storeToRefs(userStore)
+
+/* -------------------------------------------------
+ * FLAG TO PREVENT DUPLICATE FETCHES
+ * ------------------------------------------------- */
+const isFetchingFromRouteUpdate = ref(false)
+const hasInitialFetchFromRouteGuard = ref(false)
+
 
 /* -------------------------------------------------
 * PAGINATION STATE
@@ -145,27 +163,89 @@ const sorting = computed<SortingState>({
   },
 })
 
+
+/* -------------------------------------------------
+ * SEARCHING STATE
+ * ------------------------------------------------- */
+const search = computed({
+  get:()=>(route.query.search as string) ?? '',
+  set:(value:string)=>{
+    router.push({
+      query:{
+        ...route.query,
+        search:value || undefined,
+        page:1, // reset page on new search
+      }
+    })
+  }
+})
+
+
+/* -------------------------------------------------
+* DEBOUNCED SEARCH
+* ------------------------------------------------- */
+const rawSearch = ref(search.value)
+
+// Create a debounced function to update search
+const updateSearch = debounce((value: string) => {
+  search.value = value
+}, 600,{leading:false,trailing:true})
+
+// Watch rawSearch and call debounced function
+watch(rawSearch, (value) => {
+  updateSearch(value)
+})
+
 /* -------------------------------------------------
  * DATA FROM STORE (CACHED)
  * ------------------------------------------------- */
 // Users for current page/sort from store cache
 
  const users = computed(() =>
-  userStore.getUsersByPage(currentPage.value, perPage.value, sortParam.value) ?? []
+  userStore.getUsersByPage(currentPage.value, perPage.value, sortParam.value,search.value) ?? []
 )
 
-console.log(users.value)
+console.log('loggin users',users.value)
 
 /* -------------------------------------------------
  * WATCHERS
  * ------------------------------------------------- */
-// Fetch users when page, perPage, or sorting changes
+
+// Watch for query changes BUT skip if route update is handling it
 watch(
-  [currentPage, perPage, sortParam],
-  async ([page, perPage, sortValue]) => {
-    await userStore.fetchUsers(page, perPage, {sort:sortValue})
+  [currentPage, perPage, sortParam, search],
+  async ([page, perPage, sortValue, searchValue], oldValues) => {
+    // Skip if:
+    // 1. Route update is currently handling the fetch
+    // 2. This is the initial load (handled by route guard)
+    // 3. Values haven't actually changed
+    if (isFetchingFromRouteUpdate.value || hasInitialFetchFromRouteGuard.value) {
+      hasInitialFetchFromRouteGuard.value = false // Reset after first skip
+      return
+    }
+
+    // Skip initial load if route guard already handled it
+    if (sessionStorage.getItem('routeGuardFetching')) {
+      sessionStorage.removeItem('routeGuardFetching')
+      return
+    }
+    
+    // Check if values actually changed
+    const [oldPage, oldPerPage, oldSort, oldSearch] = oldValues
+    if (page === oldPage && perPage === oldPerPage && 
+        sortValue === oldSort && searchValue === oldSearch) {
+      return
+    }
+    
+    const cacheKey = buildUsersCacheKey(page, perPage, sortValue,searchValue)
+    if (!userStore.usersByPage[cacheKey]) {
+      await userStore.fetchUsers(page, perPage, {
+        sort: sortValue,
+        search: searchValue,
+      })
+    }
   },
-  { immediate: true },
+  // { immediate: true },
 )
 
 /* -----------------------------
@@ -175,8 +255,31 @@ onBeforeRouteUpdate(async (to, _, next) => {
   const page = Number(to.query.page ?? 1)
   const size = Number(to.query.per_page ?? perPage.value)
   const sort = to.query.sort as string | undefined
-  const cache = userStore.getUsersByPage(page, size, sort)
-  if (!cache || !cache.length) await userStore.fetchUsers(page, size, { sort: sort })
+  const search = to.query.search as string | undefined
+
+  // Set flag to prevent watcher from fetching
+  isFetchingFromRouteUpdate.value = true
+
+  const cacheKey = buildUsersCacheKey(page, size, sort, search)
+
+  // Only fetch if not cached
+  if (!userStore.usersByPage[cacheKey]) {
+    try {
+      await userStore.fetchUsers(page, size, { 
+        sort: sort,
+        search: search 
+      })
+    } catch (error) {
+      console.error('Failed to fetch users:', error)
+      // Optionally handle error (show message, redirect, etc.)
+    }
+  }
+
+   // Reset flag after a small delay to ensure watcher doesn't trigger
+  setTimeout(() => {
+    isFetchingFromRouteUpdate.value = false
+  }, 50)
+  
   next()
 })
 
@@ -187,6 +290,19 @@ onBeforeRouteUpdate(async (to, _, next) => {
 /**
  * Tanstack Data Table
  */
+
+function onEdit(user: User) {
+  // Example navigation or modal
+  console.log('Edit user', user.id)
+  // router.push({ name: 'users.edit', params: { id: user.id } })
+}
+
+function onDelete(user: User) {
+  console.log('Delete user', user.id)
+  // You can open confirmation dialog here
+  // userStore.deleteUser(user.id)
+}
+
 
 function sortableHeader(label: string) {
   return ({ column }: any) => {
@@ -205,7 +321,7 @@ function sortableHeader(label: string) {
           [
             h(ChevronUp, {
               class: [
-                'h-3 w-3 transition-opacity -mb-1',
+                'h-3 w-3 transition-opacity -mb-0.5',
                 column.getIsSorted() === 'asc' ? 'opacity-100 stroke-3' : 'opacity-20',
               ].join(' '),
             }),
@@ -221,6 +337,59 @@ function sortableHeader(label: string) {
     )
   }
 }
+
+function renderActionsCell(row: any) {
+  const user = row.original as User
+
+  return h(
+    'div',
+    { class: 'flex justify-end' },
+    [
+      h(
+        DropdownMenu,
+        {},
+        {
+          default: () => [
+            h(
+              DropdownMenuTrigger,
+              { asChild: true },
+              () =>
+                h(
+                  Button,
+                  { variant: 'ghost', size: 'sm', class: 'h-8 w-8 p-0' },
+                  () => h(MoreVertical, { class: 'h-4 w-4' })
+                )
+            ),
+
+            h(
+              DropdownMenuContent,
+              { align: 'end', class: 'w-36' },
+              () => [
+                h(
+                  DropdownMenuItem,
+                  { onClick: () => onEdit(user) },
+                  () => [
+                    h(Pencil, { class: 'h-4 w-4 mr-2' }),
+                    'Edit',
+                  ]
+                ),
+                h(
+                  DropdownMenuItem,
+                  { onClick: () => onDelete(user) },
+                  () => [
+                    h(Trash2, { class: 'h-4 w-4 mr-2 text-red-600' }),
+                    'Delete',
+                  ]
+                ),
+              ]
+            ),
+          ],
+        }
+      ),
+    ]
+  )
+}
+
 
 const columns: ColumnDef<User>[] = [
   {
@@ -287,7 +456,20 @@ const columns: ColumnDef<User>[] = [
       )
     },
   },
+  {
+    id:'actions',
+    enableSorting:false,
+    header: () =>
+      h(  
+        'div',
+        { class: 'text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground ' },
+        'Actions',
+      ),
+      cell:({row})=>renderActionsCell(row)
+  }
 ]
+
+
 
 const table = useVueTable<User>({
   data: users, // ✅ ComputedRef<User[]>
@@ -327,12 +509,29 @@ const table = useVueTable<User>({
   getCoreRowModel: getCoreRowModel(),
 })
 
-
-
 </script>
-
 <template>
   <div class="rounded-t-md border shadow-sm overflow-x-auto bg-background">
+     <div class="p-4 flex justify-end">
+      <div class="relative max-w-sm">
+        <Input 
+          v-model="rawSearch" 
+          placeholder="Search users..." 
+          class="pr-8"
+        />
+        <Button 
+          v-if="rawSearch" 
+          @click="rawSearch = ''" 
+          variant="ghost" 
+          size="sm"
+          title="Clear search"
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+        >
+          <X class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+
     <Table>
       <TableHeader class="bg-muted dark:bg-muted/20">
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">

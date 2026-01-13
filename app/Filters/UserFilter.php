@@ -11,6 +11,7 @@ class UserFilter extends BaseFilter
             'name'    => 'like',
             'email'   => 'like',
             'username'   => 'like',
+            'search' =>'search'
         ];
     protected $allowedSorts = [
             'id',
@@ -22,7 +23,8 @@ class UserFilter extends BaseFilter
             'include',
         ];
 
-        protected $searchableColumns = [
+        // Search Across
+    protected $searchableColumns = [
             'id',
             'name',
             'email',
