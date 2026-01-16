@@ -15,6 +15,7 @@
         "vite": "^7.0.4"
     },
     "dependencies": {
+        "@tanstack/vue-query": "^5.92.6",
         "lodash": "^4.17.21",
         "prettier": "^3.7.4"
     }

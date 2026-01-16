@@ -11,24 +11,24 @@ const ui = useUiProgressStore()
 </script>
 
 <template>
-  <SidebarProvider>
-    <!-- Sidebar -->
-    <AppSidebar />
+    <SidebarProvider>
+        <!-- Sidebar -->
+        <AppSidebar />
 
-    <!-- Main column -->
-    <SidebarInset class="flex flex-col h-screen overflow-hidden">
-      <!-- Top progress bar (absolute, no layout shift) -->
-      <Progress
-        v-if="ui.routeLoading"
-        :model-value="ui.progress"
-        class="absolute left-0 top-0 z-50 h-1 w-full rounded-none transition-all duration-300 ease-out"
-      />
+        <!-- Main column -->
+        <SidebarInset class="flex flex-col h-screen overflow-hidden">
+            <!-- Top progress bar (absolute, no layout shift) -->
+            <Progress
+                v-if="ui.routeLoading"
+                :model-value="ui.progress"
+                class="absolute left-0 top-0 z-50 h-1 w-full rounded-none transition-all duration-300 ease-out"
+            />
 
-      <!-- Sticky top navigation -->
-      <AppTopnav class="sticky top-0 z-40" />
+            <!-- Sticky top navigation -->
+            <AppTopnav class="sticky top-0 z-40" />
 
-      <!-- Scrollable main content -->
-      <AppMain />
-    </SidebarInset>
-  </SidebarProvider>
+            <!-- Scrollable main content -->
+            <AppMain />
+        </SidebarInset>
+    </SidebarProvider>
 </template>

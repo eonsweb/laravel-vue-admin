@@ -1,6 +1,6 @@
 <template>
-  <div v-if="user">User: {{ user.name }}</div>
-  <div v-else>Loading...</div>
+    <div v-if="user">User: {{ user.name }}</div>
+    <div v-else>Loading...</div>
 </template>
 
 <script setup lang="ts">
@@ -15,7 +15,7 @@ const userStore = useUserStore()
 const userId = parseInt(route.params.id as string)
 
 onMounted(async () => {
-  await userStore.fetchUserById(userId)
+    await userStore.fetchUserById(userId)
 })
 
 const user = computed(() => userStore.user)
