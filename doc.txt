@@ -1,0 +1,21 @@
+DataTable 
+    ✅ Progress is driven by state changes (route + query)
+    ✅ DataTable stays UI-only
+    ✅ No duplicate / conflicting progress triggers
+    ✅ Vue Query + Router + Suspense all cooperate instead of fighting
+
+    ✅ Progress should be driven by:
+
+        Route navigation
+        Query param changes (page, per_page, sort, search)
+        Vue Query fetching lifecycle (feature layer)
+
+    
+    Correct Architecture
+        Progress ownership
+        Layer	                Responsibility
+        ui_progress store	    Global progress state
+        Router guards	        Route-level loading
+        Suspense	            Initial async component load
+        Feature tables	        Query-based loading
+        DataTable	            Pure rendering

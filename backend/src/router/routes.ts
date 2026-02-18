@@ -30,30 +30,36 @@ export const routes: RouteRecordRaw[] = [
 
                     const ui_progressStore = useUiProgressStore()
 
+                    // Start progress
+                    ui_progressStore.startRouteLoading(10)
+
                     const page = Number(to.query.page ?? 1)
                     const perPage = Number(to.query.per_page ?? 10)
                     const sortParam = to.query.sort as string | undefined
                     const searchParam = to.query.search as string | undefined
 
                     try {
-                        ui_progressStore.advanceProgress(50)
-
                         await queryClient.prefetchQuery({
                             queryKey: [
                                 'users',
                                 'list',
                                 { page, perPage, sort: sortParam, search: searchParam },
                             ],
-                            queryFn: () =>
-                                usersApi.fetchUsers(page, perPage, {
+                            queryFn: async () => {
+                             
+                                const result = await usersApi.fetchUsers(page, perPage, {
                                     sort: sortParam,
                                     search: searchParam,
-                                }),
+                                })
+                                ui_progressStore.advanceProgress(80)
+                                return result
+                        },
                         })
 
-                        ui_progressStore.advanceProgress(80)
+                        ui_progressStore.finishRouteLoading()
                     } catch (e) {
-                        console.error('Failed to preload users in route guard:', e)
+                        // console.error('Failed to preload users in route guard:', e)
+                        ui_progressStore.reset()
                     }
 
                     return true

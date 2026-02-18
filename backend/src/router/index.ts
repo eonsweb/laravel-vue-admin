@@ -46,4 +46,9 @@ router.afterEach(() => {
     })
 })
 
+router.onError(() => {
+    const ui_progressStore = useUiProgressStore()
+    ui_progressStore.reset()
+})  
+
 export default router

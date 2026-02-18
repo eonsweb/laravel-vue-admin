@@ -2,7 +2,7 @@
 import type { User } from '@/types'
 import type { ColumnDef } from '@tanstack/vue-table'
 
-import { computed, h } from 'vue'
+import { computed,watch, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useUsersQuery } from '@/hooks/useUsersQuery'
@@ -15,6 +15,8 @@ import DataTableFooter from '@/components/custom-table/CustomDataTableFooter.vue
 
 import { Button } from '@/components/ui/button'
 import { ArrowUp, ArrowDown } from 'lucide-vue-next'
+
+import { useUiProgressStore } from '@/stores/ui_progress'
 
 /* --------------------------------------------
  * Router search param (feature responsibility)
@@ -79,6 +81,17 @@ const { data, isFetching } = useUsersQuery(
   true,
 )
 
+const uiProgress = useUiProgressStore()
+watch(
+  ()=>isFetching.value,
+  (fetching)=>{
+    if(fetching){
+      uiProgress.startRouteLoading(20)
+    }else{
+      uiProgress.finishRouteLoading()
+    }
+  })
+
 const users = computed(() => data.value?.data ?? [])
 const pageCount = computed(() => data.value?.meta.last_page ?? 0)
 
@@ -111,13 +124,17 @@ function sortableHeader(label: string) {
         variant: 'ghost',
         onClick: () => column.toggleSorting(),
       },
-      () => [
-        label,
-        h(ArrowUp, { class: 'h-3 w-3' }),
-        h(ArrowDown, { class: 'h-3 w-3' }),
-      ],
+      () =>{
+        const sortDirection = column.getIsSorted();
+        return [
+          label,
+          sortDirection === 'asc' && h(ArrowUp, { class: 'ml-1' }),
+          sortDirection === 'desc' && h(ArrowDown, { class: 'ml-1' }),
+        ]
+      } 
     )
 }
+
 
 const columns: ColumnDef<User>[] = [
   {

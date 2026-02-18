@@ -76,10 +76,6 @@ const table = useVueTable({
 
 <template>
   <div class="border shadow-sm bg-background">
-    <div v-if="isFetching" class="px-4 py-2 text-sm text-muted-foreground">
-      Updating...
-    </div>
-
     <Table>
       <TableHeader>
         <TableRow
