@@ -1,271 +1,167 @@
-<template>
-    <div class="min-h-screen">
-        <div class="mb-6 flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">Users</h1>
-                <p class="text-sm text-muted-foreground">
-                    Manage application users and permissions
-                </p>
-            </div>
-
-            <Button class="cursor-pointer"> + New User </Button>
-        </div>
-
-        <DataTable
-            class="bg-white dark:bg-slate-900 rounded-xl border bg-background shadow-sm"
-            v-if="users"
-            :is-loading="userStore.isLoading"
-            :columns="columns"
-            :data="users"
-        />
-
-        <!-- PAGINATION -->
-        <div class="flex justify-end mt-4" v-if="!isInitialLoad">
-            <div class="flex flex-col gap-6"></div>
-        </div>
-    </div>
-
-    <div class="flex items-center justify-between border-t px-4 py-3 text-sm text-muted-foreground">
-        <!-- Left:results text -->
-        <div>
-            Showing {{ pagination.per_page }} to {{ pagination.per_page * currentPage }} of
-            {{ pagination.total }}
-            results
-        </div>
-
-        <!-- Center: pagination -->
-        <div class="flex items-center gap-2 text-sm">
-            <span class="text-muted-foreground">Per page</span>
-            <Select v-model="perPage">
-                <SelectTrigger class="w-20">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem :value="10">10</SelectItem>
-                    <SelectItem :value="25">25</SelectItem>
-                    <SelectItem :value="50">50</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-
-        <!-- Right: per page selector -->
-        <Pagination
-            :items-per-page="pagination.per_page"
-            :total="pagination.total"
-            v-model:page="currentPage"
-        >
-            <PaginationContent v-slot="{ items }">
-                <PaginationPrevious @click="prevPage" />
-                <template v-for="(item, index) in items" :key="index">
-                    <PaginationItem
-                        v-if="item.type === 'page'"
-                        :value="item.value"
-                        :is-active="item.value === currentPage"
-                        @click="changePage(item.value)"
-                    >
-                        {{ item.value }}
-                    </PaginationItem>
-                </template>
-                <PaginationEllipsis :index="pagination.last_page" />
-                <PaginationNext @click="nextPage" />
-            </PaginationContent>
-        </Pagination>
-    </div>
-</template>
-
 <script setup lang="ts">
 import type { User } from '@/types'
-import { ref, watch, computed, h, onMounted } from 'vue'
 import type { ColumnDef } from '@tanstack/vue-table'
 
-import { useUserStore } from '@/stores/user'
-import { useUiProgressStore } from '@/stores/ui_progress'
+import { computed, h } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-import { Badge } from '@/components/ui/badge'
-import { RouterLink, useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
+import { useUsersQuery } from '@/hooks/useUsersQuery'
+import { useRouteTableState } from '@/composables/useRouteTableState'
+import { useDebouncedSearch } from '@/composables/useDebouncedSearch'
 
-// Contants and Stores
+import DataTable from '@/components/custom-table/CustomDataTable.vue'
+import DataTableToolbar from '@/components/custom-table/CustomDataTableToolbar.vue'
+import DataTableFooter from '@/components/custom-table/CustomDataTableFooter.vue'
+
+import { Button } from '@/components/ui/button'
+import { ArrowUp, ArrowDown } from 'lucide-vue-next'
+
+/* --------------------------------------------
+ * Router search param (feature responsibility)
+ * -------------------------------------------- */
+
 const route = useRoute()
 const router = useRouter()
 
-const userStore = useUserStore()
-const ui_progressStore = useUiProgressStore()
-
-const perPage = ref(10)
-
-onBeforeRouteUpdate(async (to, from, next) => {
-    const page = Number(to.query.page ?? 1)
-    if (!userStore.usersByPage[page]) {
-        ui_progressStore.startRouteLoading()
-        ui_progressStore.advanceProgress(50)
-        await userStore.fetchUsers(page)
-        ui_progressStore.advanceProgress(80)
-    }
-    next()
+const searchQuery = computed({
+  get: () => (route.query.search as string) ?? '',
+  set: (value: string) => {
+    router.push({
+      query: {
+        ...route.query,
+        search: value || undefined,
+        page: 1,
+      },
+    })
+  },
 })
 
-// Computed Properties
-const currentPage = computed({
-    get: () => Number(route.query.page ?? 1),
-    set: (page) => {
-        router.push({
-            query: { ...route.query, page },
-        })
-    },
-})
+/* --------------------------------------------
+ * Debounced Search
+ * -------------------------------------------- */
 
-const pagination = computed(() => userStore.pagination)
-
-const isInitialLoad = computed(
-    () => !userStore.usersByPage[currentPage.value] && userStore.isLoading,
+const { value: search, reset } = useDebouncedSearch(
+  searchQuery.value,
+  (value) => {
+    searchQuery.value = value
+  },
+  { delay: 600 },
 )
 
-const users = computed(() => userStore.getUsersByPage(currentPage.value))
-console.log('Users in UsersView:', users.value)
-// Methods
+/* --------------------------------------------
+ * Route table state
+ * -------------------------------------------- */
 
-function prevPage() {
-    if (currentPage.value > 1) currentPage.value--
-}
+const {
+  page,
+  perPage,
+  pagination,
+  sorting,
+  updatePagination,
+  updateSorting,
+} = useRouteTableState()
 
-function nextPage() {
-    if (currentPage.value < pagination.value.last_page) currentPage.value++
-}
+/* --------------------------------------------
+ * Vue Query
+ * -------------------------------------------- */
 
-function changePage(page: number) {
-    currentPage.value = page
+const { data, isFetching } = useUsersQuery(
+  page.value,
+  perPage.value,
+  {
+    sort: sorting.value[0]
+      ? sorting.value[0].desc
+        ? `-${sorting.value[0].id}`
+        : sorting.value[0].id
+      : undefined,
+    search: searchQuery.value,
+  },
+  true,
+)
+
+const users = computed(() => data.value?.data ?? [])
+const pageCount = computed(() => data.value?.meta.last_page ?? 0)
+
+const resultsRange = computed(() => {
+  const total = data.value?.meta.total ?? 0
+
+  if (!total) {
+    return { from: 0, to: 0, total: 0 }
+  }
+
+  const from = pagination.value.pageIndex * pagination.value.pageSize + 1
+  const to = Math.min(
+    (pagination.value.pageIndex + 1) * pagination.value.pageSize,
+    total,
+  )
+
+  return { from, to, total }
+})
+
+
+/* --------------------------------------------
+ * Columns (unchanged)
+ * -------------------------------------------- */
+
+function sortableHeader(label: string) {
+  return ({ column }: any) =>
+    h(
+      Button,
+      {
+        variant: 'ghost',
+        onClick: () => column.toggleSorting(),
+      },
+      () => [
+        label,
+        h(ArrowUp, { class: 'h-3 w-3' }),
+        h(ArrowDown, { class: 'h-3 w-3' }),
+      ],
+    )
 }
 
 const columns: ColumnDef<User>[] = [
-    {
-        accessorKey: 'name',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground',
-                },
-                'Name',
-            ),
-        cell: ({ row }) => {
-            return h(
-                RouterLink,
-                {
-                    to: { name: 'user-detail', params: { id: row.original.id } },
-                    class: 'text-left tx-sm text-foreground hover:bg-secondary block w-full h-full px-2 py-1 rounded',
-                },
-                () => row.getValue('name'),
-            )
-        },
-    },
-    {
-        accessorKey: 'username',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ',
-                },
-                'username',
-            ),
-        cell: ({ row }) => {
-            return h(
-                'div',
-                { class: 'text-left text-sm text-foreground' },
-                row.getValue('username'),
-            )
-        },
-    },
-    {
-        accessorKey: 'email',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ',
-                },
-                'Email',
-            ),
-        cell: ({ row }) => {
-            return h('div', { class: 'text-left text-sm text-foreground' }, row.getValue('email'))
-        },
-    },
-    {
-        accessorKey: 'created_at',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ',
-                },
-                'Created At',
-            ),
-        cell: ({ row }) => {
-            return h(
-                'div',
-                { class: 'text-left text-sm text-foreground' },
-                row.getValue('created_at'),
-            )
-        },
-    },
-    {
-        accessorKey: 'updated_at',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ',
-                },
-                'Updated At',
-            ),
-        cell: ({ row }) => {
-            return h(
-                'div',
-                { class: 'text-left text-sm text-foreground' },
-                row.getValue('updated_at'),
-            )
-        },
-    },
-    {
-        accessorKey: 'permissions',
-        header: () =>
-            h(
-                'div',
-                {
-                    class: 'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground ',
-                },
-                'Permissions',
-            ),
-        cell: ({ row }) => {
-            const perms = row.getValue('permissions') as { id: number; name: string }[]
-
-            return h(
-                'div',
-                { class: 'flex flex-wrap gap-1' },
-                perms.map((p) =>
-                    h(
-                        Badge,
-                        {
-                            variant: 'secondary',
-                            class: 'text-[11px] font-medium rounded-full px-2 py-0.5',
-                        },
-                        () => p.name,
-                    ),
-                ),
-            )
-        },
-    },
+  {
+    accessorKey: 'name',
+    header: sortableHeader('Name'),
+  },
+  {
+    accessorKey: 'email',
+    header: sortableHeader('Email'),
+  },
 ]
 </script>
 
-<style scoped>
-@reference "../../assets/main.css";
+<template>
+  <div class="space-y-0">
+    <DataTableToolbar
+      :search="search"
+      placeholder="Search users..."
+      @update:search="search = $event"
+      @clear-search="reset"
+    >
+      <template #actions>
+        <Button size="sm">Create User</Button>
+      </template>
+    </DataTableToolbar>
 
-:deep(td) {
-    @apply p-0;
-}
+    <DataTable
+      :data="users"
+      :columns="columns"
+      :page-count="pageCount"
+      :pagination="pagination"
+      :sorting="sorting"
+      :is-fetching="isFetching"
+      @pagination-change="updatePagination"
+      @sorting-change="updateSorting"
+    />
 
-:deep(td > *) {
-    @apply px-4 py-3;
-}
-</style>
+    <DataTableFooter
+      :page-index="pagination.pageIndex"
+      :page-size="pagination.pageSize"
+      :page-count="pageCount"
+      :results-range="resultsRange"
+      @page-change="(pageIndex) => updatePagination({ ...pagination, pageIndex })"
+      @page-size-change="perPage = $event"
+    />
+  </div>
+</template>

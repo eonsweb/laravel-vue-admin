@@ -1,6 +1,19 @@
 import { defineStore } from 'pinia'
 import type { User, LoginResponse } from '@/types'
 import apiClient from '@/api/axios'
+import type { AuthErrorResponse } from '@/types'
+import type { Router } from 'vue-router'
+
+//custom error class for login
+class AuthError extends Error implements AuthErrorResponse {
+    status: number
+
+    constructor(message: string, status: number) {
+        super(message)
+        this.status = status
+        Object.setPrototypeOf(this, AuthError.prototype)
+    }
+}
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
@@ -36,11 +49,22 @@ export const useAuthStore = defineStore('auth', {
 
                 return true // Let component handle the redirect
             } catch (error: any) {
-                console.error('Login failed:', error.response?.data || error.message)
-                throw error
+                const response = error?.response
+
+                const message = response?.data?.message ?? 'Invalid email or password'
+                const status = response?.status ?? 500
+
+                throw new AuthError(message, status)
             } finally {
                 this.isLoading = false
             }
+        },
+        clear() {
+            ;((this.token = ''), (this.currentUser = null), localStorage.removeItem('token'))
+        },
+        logout(router: Router) {
+            this.clear()
+            router.push({ name: 'login' })
         },
     },
 })

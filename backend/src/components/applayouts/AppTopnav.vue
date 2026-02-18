@@ -211,8 +211,7 @@ const notifications = ref([
 ])
 
 const logout = () => {
-    auth.setToken('')
-    router.push({ name: 'login' })
+    auth.logout(router)
 }
 
 const unreadCount = computed(() => notifications.value.filter((n) => !n.read).length)

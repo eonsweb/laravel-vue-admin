@@ -3,20 +3,15 @@
 import type { User } from '@/types'
 
 import { debounce } from '@/composables/useDebounce'
-import { buildUsersCacheKey } from '@/utils/cacheKey'
 
 //VUE CORE
 import { ref, computed, h, watch } from 'vue'
-import {  useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 
 // VUE QUERY
 import { useUsersQuery } from '@/hooks/useUsersQuery'
 import { useQueryClient } from '@tanstack/vue-query'
 import { usersApi } from '@/api/users'
-
-//STATE
-
-import { useUserStore } from '@/stores/user'
 
 //TABLE (TANSTACK)
 import type { ColumnDef, SortingState } from '@tanstack/vue-table'
@@ -53,6 +48,7 @@ import { ChevronUp, ChevronDown, X, MoreVertical, Pencil, Trash2 } from 'lucide-
 /* -------------------------------------------------
  * ROUTER + STORE SETUP
  * ------------------------------------------------- */
+
 const route = useRoute()
 const router = useRouter()
 const queryClient = useQueryClient()
@@ -96,8 +92,6 @@ const perPage = computed<number>({
  */
 const sortParam = computed(() => route.query.sort as string | undefined)
 
-
-
 /* -------------------------------------------------
  * SEARCHING STATE
  * ------------------------------------------------- */
@@ -136,25 +130,36 @@ watch(rawSearch, (value) => {
 /* -------------------------------------------------
  * VUE QUERY FOR USERS DATA
  * ------------------------------------------------- */
-const {data:usersData,isLoading,isError,isFetching} = useUsersQuery(
-    currentPage.value,perPage.value,{
-    sort: sortParam.value,
-    search: search.value,
-},true)
+const {
+    data: usersData,
+    isLoading,
+    isError,
+    isFetching,
+} = useUsersQuery(
+    currentPage.value,
+    perPage.value,
+    {
+        sort: sortParam.value,
+        search: search.value,
+    },
+    true,
+)
 
-const users = computed(()=> usersData.value?.data ?? [])
-const pagination = computed(()=> usersData.value?.meta ?? {
-    total:0,
-    per_page:perPage.value,
-    current_page:currentPage.value,
-    last_page:0,
-})
+const users = computed(() => usersData.value?.data ?? [])
+const pagination = computed(
+    () =>
+        usersData.value?.meta ?? {
+            total: 0,
+            per_page: perPage.value,
+            current_page: currentPage.value,
+            last_page: 0,
+        },
+)
 
 /**
  * Page count for TanStack manual pagination mode
  */
-const pageCount = computed(() =>  pagination.value.last_page
-)  
+const pageCount = computed(() => pagination.value.last_page)
 
 /**
  * Total pagination info text "Showing x–y of z"
@@ -175,24 +180,25 @@ const resultsRange = computed(() => {
  * ------------------------------------------------- */
 
 // Watch for query changes and prefetch next page
-watch(
-    [currentPage, perPage, sortParam, search],
-    async ([page, size, sort, searchQuery]) => {
-        // Prefetch next page for better UX
-        const nextPage = page + 1
-        if (nextPage <= pagination.value.last_page) {
-            queryClient.prefetchQuery({
-                queryKey: ['users', 'list', { 
-                    page: nextPage, 
-                    perPage: size, 
-                    sort, 
-                    search: searchQuery 
-                }],
-                queryFn: () => usersApi.fetchUsers(nextPage, size, { sort, search: searchQuery }),
-            })
-        }
+watch([currentPage, perPage, sortParam, search], async ([page, size, sort, searchQuery]) => {
+    // Prefetch next page for better UX
+    const nextPage = page + 1
+    if (nextPage <= pagination.value.last_page) {
+        queryClient.prefetchQuery({
+            queryKey: [
+                'users',
+                'list',
+                {
+                    page: nextPage,
+                    perPage: size,
+                    sort,
+                    search: searchQuery,
+                },
+            ],
+            queryFn: () => usersApi.fetchUsers(nextPage, size, { sort, search: searchQuery }),
+        })
     }
-)
+})
 /* -----------------------------
  * ROUTE CHANGE
  * ----------------------------- */
@@ -207,7 +213,7 @@ onBeforeRouteUpdate(async (to, _, next) => {
         queryKey: ['users', 'list', { page, perPage: size, sort, search }],
         queryFn: () => usersApi.fetchUsers(page, size, { sort, search }),
     })
-    
+
     next()
 })
 
@@ -407,7 +413,7 @@ const table = useVueTable<User>({
 
         currentPage.value = next.pageIndex + 1
     },
-     onSortingChange: (updater) => {
+    onSortingChange: (updater) => {
         const value = typeof updater === 'function' ? updater(table.getState().sorting) : updater
         const first = value[0]
 
@@ -432,13 +438,13 @@ const table = useVueTable<User>({
 <template>
     <div class="space-y-4">
         <!-- Loading State -->
-        <div v-if="isLoading" class="text-center py-8">
+        <!-- <div v-if="isLoading" class="text-center py-8">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
             <p class="mt-2 text-sm text-muted-foreground">Loading users...</p>
-        </div>
+        </div> -->
 
         <!-- Error State -->
-        <div v-else-if="isError" class="text-center py-8 text-red-600">
+        <div v-if="isError" class="text-center py-8 text-red-600">
             <p>Error loading users: {{ error?.message }}</p>
             <Button @click="queryClient.refetchQueries({ queryKey: ['users'] })" class="mt-2">
                 Retry
@@ -449,9 +455,7 @@ const table = useVueTable<User>({
         <div v-else>
             <div class="rounded-t-md border shadow-sm overflow-x-auto bg-background">
                 <div class="p-4 flex justify-between items-center">
-                    <div v-if="isFetching" class="text-sm text-muted-foreground">
-                        Updating...
-                    </div>
+                    <div v-if="isFetching" class="text-sm text-muted-foreground">Updating...</div>
                     <div v-else class="flex-1"></div>
                     <div class="relative max-w-sm">
                         <Input v-model="rawSearch" placeholder="Search users..." class="pr-8" />
@@ -470,7 +474,10 @@ const table = useVueTable<User>({
 
                 <Table>
                     <TableHeader class="bg-muted dark:bg-muted/20">
-                        <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                        <TableRow
+                            v-for="headerGroup in table.getHeaderGroups()"
+                            :key="headerGroup.id"
+                        >
                             <TableHead
                                 v-for="header in headerGroup.headers"
                                 :key="header.id"
@@ -505,7 +512,7 @@ const table = useVueTable<User>({
                     </TableBody>
                 </Table>
             </div>
-            
+
             <!-- Pagination Footer -->
             <div
                 class="flex items-center justify-between py-4 px-4 space-x-2 bg-background shadow-sm rounded-b-md mt-0"
@@ -517,7 +524,9 @@ const table = useVueTable<User>({
 
                 <!-- Rows per page -->
                 <div class="flex items-center gap-3">
-                    <span class="text-sm text-muted-foreground whitespace-nowrap"> Rows per page </span>
+                    <span class="text-sm text-muted-foreground whitespace-nowrap">
+                        Rows per page
+                    </span>
 
                     <Select
                         :model-value="String(perPage)"
@@ -528,7 +537,11 @@ const table = useVueTable<User>({
                         </SelectTrigger>
 
                         <SelectContent>
-                            <SelectItem v-for="size in pageSizeOptions" :key="size" :value="String(size)">
+                            <SelectItem
+                                v-for="size in pageSizeOptions"
+                                :key="size"
+                                :value="String(size)"
+                            >
                                 {{ size }}
                             </SelectItem>
                         </SelectContent>

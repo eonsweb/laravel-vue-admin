@@ -3,7 +3,7 @@ import axios from 'axios'
 import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
 import { useAuthStore } from '@/stores/auth'
-import router from '@/router'
+import { useRouter } from 'vue-router'
 
 const apiClient: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
@@ -29,11 +29,14 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response: AxiosResponse) => response,
     (error: AxiosError) => {
+        const router = useRouter()
+        const auth = useAuthStore()
+
         if (error.response?.status === 401) {
-            const auth = useAuthStore()
-            auth.clear()
-            router.push({ name: 'login' })
+            auth.setToken('')
+            router.push('/login')
         }
+
         return Promise.reject(error)
     },
 )

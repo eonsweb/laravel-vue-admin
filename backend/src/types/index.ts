@@ -10,12 +10,14 @@ export interface Role {
 }
 
 export interface User {
-    id: number
+    id?: number
     name: string
     username: string
     email: string
-    created_at: string //ISO date string,
-    updated_at: string // ISO date string,
+    avatar?: string
+    bio?: string
+    created_at?: string //ISO date string,
+    updated_at?: string // ISO date string,
 
     permissions?: Permission[]
     direct_permissions?: Permission[]
@@ -32,6 +34,10 @@ export interface LoginResponse {
 export interface ApiResponse<T> {
     data: T
 }
+export interface AuthErrorResponse {
+    message: string
+    status: number
+}
 
 export interface Payment {
     id: string
@@ -45,14 +51,13 @@ export interface FetchUserOptions {
     search?: string
 }
 
-
 //Pagination response meta interface
 export interface PaginatedMeta {
-    current_page: number  
+    current_page: number
     last_page: number
     per_page: number
     total: number
-}     
+}
 
 export interface PaginatedResponse<T> {
     data: T[]

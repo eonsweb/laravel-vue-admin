@@ -1,0 +1,45 @@
+Role:
+You are a senior Vue 3 + TypeScript engineer with deep experience in TanStack Table, TanStack Query, Vue Router, and shadcn/ui.
+
+Goal:
+Refactor the following feature-specific TanStack Vue table (Users table) into a fully reusable DataTable solution that can be reused for Users, Products, Customers, etc.
+
+Constraints & Tech Stack:
+
+Vue 3 <script setup> + TypeScript
+
+TanStack Vue Table (manual pagination + manual sorting)
+
+TanStack Vue Query (data fetching stays OUTSIDE the reusable DataTable)
+
+Vue Router (query params for page, per_page, sort, search)
+
+shadcn/ui Vue components
+
+Laravel-style API sorting (name = asc, -name = desc)
+
+Important Architectural Rules:
+
+DataTable must be UI-only
+
+No API calls
+
+No Vue Query
+
+No direct router access
+
+Feature logic stays outside
+
+useUsersQuery, usersApi, route guards remain unchanged
+
+Router-synced pagination & sorting must be reusable
+
+Extract into a composable (e.g. useRouteTableState)
+
+Columns remain feature-specific
+
+Actions column (edit/delete) stays in Users table
+
+Search input must be reusable
+
+Debounced search logic should be extracted into a composable
